@@ -9,6 +9,185 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
+}
+
+model Warehouse {
+  w_id       Int        @id
+  w_name     String?    @db.VarChar(10)
+  w_street_1 String?    @db.VarChar(20)
+  w_street_2 String?    @db.VarChar(20)
+  w_city     String?    @db.VarChar(20)
+  w_state    String?    @db.Char(2)
+  w_zip      String?    @db.Char(9)
+  w_tax      Decimal?   @db.Decimal(4, 2)
+  w_ytd      Decimal?   @db.Decimal(12, 2)
+  district   District[]
+  stock      Stock[]
+
+  @@map("warehouse")
+}
+
+model District {
+  d_id        Int
+  d_w_id      Int
+  d_name      String?  @db.VarChar(10)
+  d_street_1  String?  @db.VarChar(20)
+  d_street_2  String?  @db.VarChar(20)
+  d_city      String?  @db.VarChar(20)
+  d_state     String?  @db.Char(2)
+  d_zip       String?  @db.Char(9)
+  d_tax       Decimal? @db.Decimal(4, 2)
+  d_ytd       Decimal? @db.Decimal(12, 2)
+  d_next_o_id Int?
+
+  warehouse Warehouse  @relation(fields: [d_w_id], references: [w_id])
+  Customer  Customer[]
+  History   History[]
+
+  @@id([d_id, d_w_id])
+  @@map("district")
+}
+
+model Customer {
+  c_id           Int
+  c_d_id         Int
+  c_w_id         Int
+  c_first        String?   @db.VarChar(16)
+  c_middle       String?   @db.Char(2)
+  c_last         String?   @db.VarChar(16)
+  c_street_1     String?   @db.VarChar(20)
+  c_street_2     String?   @db.VarChar(20)
+  c_city         String?   @db.VarChar(20)
+  c_state        String?   @db.Char(2)
+  c_zip          String?   @db.Char(9)
+  c_phone        String?   @db.Char(16)
+  c_since        DateTime?
+  c_credit       String?   @db.Char(2)
+  c_credit_lim   BigInt?
+  c_discount     Decimal?  @db.Decimal(4, 2)
+  c_balance      Decimal?  @db.Decimal(12, 2)
+  c_ytd_payment  Decimal?  @db.Decimal(12, 2)
+  c_payment_cnt  Int?
+  c_delivery_cnt Int?
+  c_data         String?   @db.Text
+
+  district District  @relation(fields: [c_d_id, c_w_id], references: [d_id, d_w_id])
+  history  History[]
+  order    Order[]
+
+  @@id([c_id, c_d_id, c_w_id])
+  
+  @@index([c_w_id, c_d_id, c_last, c_first], name: "idx_customer")
+  @@map("customer")
+}
+
+model History {
+  h_c_id   Int
+  h_c_d_id Int
+  h_c_w_id Int
+  h_d_id   Int
+  h_w_id   Int
+  h_date   DateTime?
+  h_amount Decimal?  @db.Decimal(6, 2)
+  h_data   String?   @db.VarChar(24)
+  id       Int       @id @default(autoincrement()) // 원래 TPC-C Benchmark 에는 PK 없는 테이블
+
+
+  customer Customer @relation(fields: [h_c_id, h_c_d_id, h_c_w_id], references: [c_id, c_d_id, c_w_id])
+  district District @relation(fields: [h_w_id, h_d_id], references: [d_w_id, d_id])
+
+  @@index([h_c_w_id, h_c_d_id, h_c_id], name: "fkey_history_1")
+  @@index([h_w_id, h_d_id], name: "fkey_history_2")
+  @@map("history")
+}
+
+model Order {
+  o_id         Int
+  o_d_id       Int
+  o_w_id       Int
+  o_c_id       Int?
+  o_entry_d    DateTime?
+  o_carrier_id Int?
+  o_ol_cnt     Int?
+  o_all_local  Int?
+
+  customer  Customer?   @relation(fields: [o_w_id, o_d_id, o_c_id], references: [c_id, c_d_id, c_w_id])
+  orderLine OrderLine[]
+  NewOrder  NewOrder[]
+
+  @@id([o_w_id, o_d_id, o_id])
+  @@index([o_w_id, o_d_id, o_c_id, o_id], name: "idx_orders")
+  @@map("orders")
+}
+
+model OrderLine {
+  ol_o_id        Int
+  ol_d_id        Int
+  ol_w_id        Int
+  ol_number      Int
+  ol_i_id        Int?
+  ol_supply_w_id Int?
+  ol_delivery_d  DateTime?
+  ol_quantity    Int?
+  ol_amount      Decimal?  @db.Decimal(6, 2)
+  ol_dist_info   String?   @db.Char(24)
+
+  order Order  @relation(fields: [ol_w_id, ol_d_id, ol_o_id], references: [o_w_id, o_d_id, o_id])
+  stock Stock? @relation(fields: [ol_supply_w_id, ol_i_id], references: [s_w_id, s_i_id])
+
+  @@id([ol_w_id, ol_d_id, ol_o_id, ol_number])
+  @@index([ol_supply_w_id, ol_i_id], name: "fkey_order_line_2")
+  @@map("order_line")
+}
+
+model Item {
+  i_id    Int      @id
+  i_im_id Int?
+  i_name  String?  @db.VarChar(24)
+  i_price Decimal? @db.Decimal(5, 2)
+  i_data  String?  @db.VarChar(50)
+  Stock   Stock[]
+
+  @@map("item")
+}
+
+model Stock {
+  s_i_id       Int
+  s_w_id       Int
+  s_quantity   Int?
+  s_dist_01    String?  @db.Char(24)
+  s_dist_02    String?  @db.Char(24)
+  s_dist_03    String?  @db.Char(24)
+  s_dist_04    String?  @db.Char(24)
+  s_dist_05    String?  @db.Char(24)
+  s_dist_06    String?  @db.Char(24)
+  s_dist_07    String?  @db.Char(24)
+  s_dist_08    String?  @db.Char(24)
+  s_dist_09    String?  @db.Char(24)
+  s_dist_10    String?  @db.Char(24)
+  s_ytd        Decimal? @db.Decimal(8, 0)
+  s_order_cnt  Int?
+  s_remote_cnt Int?
+  s_data       String?  @db.VarChar(50)
+
+  item      Item        @relation(fields: [s_i_id], references: [i_id])
+  warehouse Warehouse   @relation(fields: [s_w_id], references: [w_id])
+  orderLine OrderLine[]
+
+  @@id([s_w_id, s_i_id])
+  @@index([s_i_id], name: "fkey_stock_2")
+  @@map("stock")
+}
+
+model NewOrder {
+  no_o_id Int
+  no_d_id Int
+  no_w_id Int
+
+  order Order @relation(fields: [no_w_id, no_d_id, no_o_id], references: [o_w_id, o_d_id, o_id])
+
+  @@id([no_w_id, no_d_id, no_o_id])
+  @@map("new_orders")
 }
