@@ -1,3 +1,11 @@
+# Prisma ORM - Nest.js Benchmark Test
+
+---
+
+This Repository is for test Prisma ORM - Nest.jss Performance using TPC-C Benchmark
+
+
+
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="200" alt="Nest Logo" /></a>
 </p>
